@@ -21,7 +21,9 @@ C_SRCS = boot/bootloader.c \
          system/idt.c \
          system/keyboard.c \
          system/mouse.c \
-	 system/lib.c
+	 system/lib.c \
+	 system/ahci.c \
+	 system/print.c
 
 CXX_SRCS = system/mouse.cpp
 
@@ -44,7 +46,6 @@ build: | build_dir $(OBJS)
 	echo "FS0:\\EFI\\BOOT\\BOOTX64.EFI" > image/startup.nsh
 
 
-# Правило для всех .c файлов
 build/%.o: boot/%.c | build_dir
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -57,15 +58,12 @@ build/%.o: system/%.c | build_dir
 build/lib.o: system/lib.c | build_dir
 	$(CC) $(CFLAGS) -c $< -o $@ 
 
-# Правило для всех .cpp файлов (создает %_cpp.o)
 build/%_cpp.o: system/%.cpp | build_dir
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Правило для всех .asm файлов
 build/%.o: system/%.asm | build_dir
 	$(ASM) $(ASMFLAGS) $< -o $@
 
-# Вспомогательное правило для папки
 build_dir:
 	mkdir -p build
 

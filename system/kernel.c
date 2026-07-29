@@ -56,10 +56,18 @@ void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
     init_idt();
     init_ioapic();
     init_mouse();
+    init_ahci();
 
     fill_screen(20, 30, 50, 255);
     draw_taskbar(50, 700, 923, 40, 8, 255, 255, 255, 200);
-
+    
+    uint8_t my_buffer[512];
+    ahci_read_sector(0, my_buffer);
+    for (int i = 0; i < 512; i++) {
+        my_buffer[i] = 'A';
+    }
+    printf(my_buffer, 20, 20, 255, 255, 255);
+    
     swap_buffers(0);
 
     for (volatile int i = 0; i < 10000000; i++) {

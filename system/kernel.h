@@ -9,4 +9,6 @@ extern volatile uint8_t last_scancode;
 #include "idt.h"
 #include "keyboard.h"
 #include "mouse.h"
-#include "./lib.h"
+#include "lib.h"
+#include "ahci.h"
+#include "print.h"
