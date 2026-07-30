@@ -53,6 +53,9 @@ void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
     }
 
     init_screen_driver(info);
+    draw_icon(335, 115);
+    swap_buffers(0);
+    
     init_idt();
     init_ioapic();
     init_mouse();
@@ -65,9 +68,7 @@ void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
     ahci_read_sector(0, my_buffer);
     for (int i = 0; i < 512; i++) {
         my_buffer[i] = 'A';
-    }
-    printf(my_buffer, 20, 20, 255, 255, 255);
-    
+    }    
     swap_buffers(0);
 
     for (volatile int i = 0; i < 10000000; i++) {
@@ -78,7 +79,6 @@ void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
 
     while (1) {
         __asm__ __volatile__("hlt");
-
         if (has_keyboard_event) {
             has_keyboard_event = 0;
             if (last_scancode == 0x01) {

@@ -23,7 +23,8 @@ C_SRCS = boot/bootloader.c \
          system/mouse.c \
 	 system/lib.c \
 	 system/ahci.c \
-	 system/print.c
+	 system/print.c \
+	 system/allocate.c
 
 CXX_SRCS = system/mouse.cpp
 

@@ -12,3 +12,4 @@ extern volatile uint8_t last_scancode;
 #include "lib.h"
 #include "ahci.h"
 #include "print.h"
+#include "allocate.h"

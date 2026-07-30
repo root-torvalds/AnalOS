@@ -1,4 +1,4 @@
-#include "efi.h"
+#include "../efi.h"
 
 void __attribute__((ms_abi)) kernel_main(BootInfo* info);
 typedef void (__attribute__((ms_abi)) *kernel_entry_t)(BootInfo*);

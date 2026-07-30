@@ -1,5 +1,6 @@
 #include "efi.h"
 #include "kernel.h"
+#include "../icon.h"
 
 UINT32* real_framebuffer = 0;
 
@@ -218,6 +219,21 @@ EFIAPI void draw_taskbar(UINT32 x, UINT32 y, UINT32 w, UINT32 h, UINT32 rad, UIN
 
                     draw_pixel(screen_x, screen_y, r, g, b, (UINT8)final_alpha);
                 }
+            }
+        }
+    }
+}
+
+void draw_icon(UINT32 x0, UINT32 y0) {
+    for (UINT32 y = 0; y < icon_height; y++) {
+        for (UINT32 x = 0; x < icon_width; x++) {
+            UINT32 idx = (y * icon_width + x) * 4;
+            UINT8 r = icon[idx + 0];
+            UINT8 g = icon[idx + 1];
+            UINT8 b = icon[idx + 2];
+            UINT8 a = icon[idx + 3];
+            if (a > 0) {
+                draw_pixel(x0 + x, y0 + y, r, g, b, a);
             }
         }
     }
