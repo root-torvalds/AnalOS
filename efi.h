@@ -1,5 +1,4 @@
-#ifndef EFI_H
-#define EFI_H
+#pragma once
 
 #define EFIAPI __attribute__((ms_abi))
 
@@ -132,5 +131,4 @@ EFIAPI void draw_alpha_test_bar(UINT32 start_x, UINT32 start_y, UINT32 height);
 EFIAPI void draw_circle(UINT32 center_x, UINT32 center_y, UINT32 rad, UINT8 r, UINT8 g, UINT8 b, UINT8 a);
 EFIAPI void draw_taskbar(UINT32 x1, UINT32 y1, UINT32 x2, UINT32 y2, UINT32 rad, UINT8 r, UINT8 g, UINT8 b, UINT8 a);
 void draw_icon(UINT32 x0, UINT32 y0);
-
-#endif
+void draw_wallpaper(UINT32 x0, UINT32 y0);

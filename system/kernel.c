@@ -61,7 +61,7 @@ void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
     init_mouse();
     init_ahci();
 
-    fill_screen(20, 30, 50, 255);
+    draw_wallpaper(0, 0);
     draw_taskbar(50, 700, 923, 40, 8, 255, 255, 255, 200);
     
     uint8_t my_buffer[512];
