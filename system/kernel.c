@@ -53,6 +53,7 @@ void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
     }
 
     init_screen_driver(info);
+    fill_screen(0,0,0, 255);
     draw_icon(335, 115);
     swap_buffers(0);
     
@@ -64,12 +65,19 @@ void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
     draw_wallpaper(0, 0);
     draw_taskbar(50, 700, 923, 40, 8, 255, 255, 255, 200);
     
-    uint8_t my_buffer[512];
-    ahci_read_sector(0, my_buffer);
-    for (int i = 0; i < 512; i++) {
-        my_buffer[i] = 'A';
-    }    
+    // 1. Создаем и обнуляем буферы
+    test_ahci_write_x();
+    uint32_t read_byte = test_ahci_read_x();
+
+    printf("Read Byte 0:", 30, 30, 255, 255, 255);
+    print_hex(read_byte, 150, 30); 
+
+    debug_ahci_status();
     swap_buffers(0);
+
+
+
+    debug_ahci_status();
 
     for (volatile int i = 0; i < 10000000; i++) {
         __asm__ volatile("nop");

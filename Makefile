@@ -83,10 +83,14 @@ run:
 		-drive if=none,id=usbstick,format=raw,file=fat:rw:image \
 		-device usb-ehci,id=ehci \
 		-device usb-storage,bus=ehci.0,drive=usbstick \
+		-drive id=ahcidisk,file=disk.img,if=none,format=raw \
+		-device ahci,id=ahci \
+		-device ide-hd,drive=ahcidisk,bus=ahci.0 \
 		-machine pc \
 		-device isa-applesmc,osk="insertoskhereuphere" \
 		-d int \
 		-D qemu.log
+
 
 
 
