@@ -154,55 +154,65 @@ void init_ahci(void) {
 
 void ahci_read_sector(uint64_t lba, void* target_buffer) {
     if (!ahci) return;
-    volatile AHCI_Port* port = &ahci->ports;
-    int slot = 0; 
+    volatile AHCI_Port* port = &ahci->ports[0];
+    int slot = 0; // Для базовых операций используем фиксированный слот 0
     if (port->ci & (1 << slot)) return; 
 
     volatile AHCI_CmdHeader* cmd_hdr = &my_cmd_list[slot];
     cmd_hdr->cfl = 5;
-    cmd_hdr->w = 0;
+    cmd_hdr->w = 0; // Режим чтения (Device to Host)
     cmd_hdr->prdtl = 1;
 
-    // Прямой доступ к полям структуры без опасных сдвигов адреса памяти
-    volatile AHCI_PrdtEntry* prdt = &my_command_table[slot].prdt_entry;
+    // Очищаем FIS-зону в таблице команд перед заполнением
+    volatile AHCI_CommandTable* cmd_tbl = &my_command_table[slot];
+    for (int i = 0; i < 64; i++) cmd_tbl->cfis[i] = 0;
+
+    // Заполнение PRDT на основе переданного target_buffer
     uintptr_t buf_phys = (uintptr_t)target_buffer;
-    prdt->dba = (uint32_t)buf_phys;
-    prdt->dbau = (uint32_t)(buf_phys >> 32);
-    prdt->dbc = 511; 
-    prdt->ioc = 0;
+    cmd_tbl->prdt_entry.dba = (uint32_t)buf_phys;
+    cmd_tbl->prdt_entry.dbau = (uint32_t)(buf_phys >> 32);
+    cmd_tbl->prdt_entry.dbc = 511; // Размер 1 сектора в байтах минус 1 (512 - 1)
+    cmd_tbl->prdt_entry.ioc = 0;
 
-    volatile uint8_t* fis = my_command_table[slot].cfis;
-    for(int i = 0; i < 64; i++) fis[i] = 0;
+    // Формирование FIS Host-to-Device
+    cmd_tbl->cfis[0] = FIS_TYPE_REG_H2D;
+    cmd_tbl->cfis[1] = 0x80; // Бит отправки команды взведен
+    cmd_tbl->cfis[2] = ATA_CMD_READ_DMA_EXT;
 
-    fis[0] = FIS_TYPE_REG_H2D;
-    fis[1] = 0x80;
-    fis[2] = ATA_CMD_READ_DMA_EXT;
+    cmd_tbl->cfis[4] = (uint8_t)lba;
+    cmd_tbl->cfis[5] = (uint8_t)(lba >> 8);
+    cmd_tbl->cfis[6] = (uint8_t)(lba >> 16);
+    cmd_tbl->cfis[7] = 1 << 6; // Режим адресации LBA
+    cmd_tbl->cfis[8] = (uint8_t)(lba >> 24);
+    cmd_tbl->cfis[9] = (uint8_t)(lba >> 32);
+    cmd_tbl->cfis[10] = (uint8_t)(lba >> 40);
 
-    fis[4] = (uint8_t)lba;
-    fis[5] = (uint8_t)(lba >> 8);
-    fis[6] = (uint8_t)(lba >> 16);
-    fis[7] = 1 << 6;
-    fis[8] = (uint8_t)(lba >> 24);
-    fis[9] = (uint8_t)(lba >> 32);
-    fis[10] = (uint8_t)(lba >> 40);
+    cmd_tbl->cfis[12] = 1; // Читаем ровно 1 сектор
+    cmd_tbl->cfis[13] = 0;
 
-    fis[12] = 1;
-    fis[13] = 0;
-
+    // Ожидание готовности диска перед отправкой команды
     uint32_t timeout = 1000000;
     while ((port->tfd & (0x80 | 0x08)) && --timeout);
     if (timeout == 0) return;
 
-    port->ci = (1 << slot);
+    // Синхронизация кэша: выталкиваем буфер чтения, чтобы CPU не читал старые данные
+    flush_cache_line(target_buffer, 512);
+
+    port->ci = (1 << slot); // Активируем команду
+
+    // Ожидание завершения операции контроллером
     timeout = 5000000;
     while (--timeout) {
         if ((port->ci & (1 << slot)) == 0) break;
     }
+
+    // Принудительно заставляем CPU обновить кэш новыми данными, прилетевшими от AHCI по DMA
+    flush_cache_line(target_buffer, 512);
 }
 
 bool ahci_write_sector(uint64_t lba, const void* source_buffer) {
     if (!ahci) return false;
-    volatile AHCI_Port* port = &ahci->ports;
+    volatile AHCI_Port* port = &ahci->ports[0];
     int slot = 0; 
     if (port->ci & (1 << slot)) return false; 
 
@@ -210,44 +220,48 @@ bool ahci_write_sector(uint64_t lba, const void* source_buffer) {
 
     volatile AHCI_CmdHeader* cmd_hdr = &my_cmd_list[slot];
     cmd_hdr->cfl = 5;
-    cmd_hdr->w = 1;
+    cmd_hdr->w = 1; // Режим записи (Host to Device)
     cmd_hdr->prdtl = 1;
 
-    // Прямой доступ к полям структуры без опасных сдвигов адреса памяти
-    volatile AHCI_PrdtEntry* prdt = &my_command_table[slot].prdt_entry;
+    volatile AHCI_CommandTable* cmd_tbl = &my_command_table[slot];
+    for (int i = 0; i < 64; i++) cmd_tbl->cfis[i] = 0;
+
+    // Заполнение PRDT на основе переданного source_buffer
     uintptr_t buf_phys = (uintptr_t)source_buffer;
-    prdt->dba = (uint32_t)buf_phys;
-    prdt->dbau = (uint32_t)(buf_phys >> 32);
-    prdt->dbc = 511; 
-    prdt->ioc = 0;
+    cmd_tbl->prdt_entry.dba = (uint32_t)buf_phys;
+    cmd_tbl->prdt_entry.dbau = (uint32_t)(buf_phys >> 32);
+    cmd_tbl->prdt_entry.dbc = 511; 
+    cmd_tbl->prdt_entry.ioc = 0;
 
-    volatile uint8_t* fis = my_command_table[slot].cfis;
-    for (int i = 0; i < 64; i++) fis[i] = 0;
+    // Формирование FIS
+    cmd_tbl->cfis[0] = FIS_TYPE_REG_H2D;
+    cmd_tbl->cfis[1] = 0x80; 
+    cmd_tbl->cfis[2] = ATA_CMD_WRITE_DMA_EXT;
 
-    fis[0] = FIS_TYPE_REG_H2D;
-    fis[1] = 0x80;
-    fis[2] = ATA_CMD_WRITE_DMA_EXT;
+    cmd_tbl->cfis[4] = (uint8_t)lba;
+    cmd_tbl->cfis[5] = (uint8_t)(lba >> 8);
+    cmd_tbl->cfis[6] = (uint8_t)(lba >> 16);
+    cmd_tbl->cfis[7] = 1 << 6;
+    cmd_tbl->cfis[8] = (uint8_t)(lba >> 24);
+    cmd_tbl->cfis[9] = (uint8_t)(lba >> 32);
+    cmd_tbl->cfis[10] = (uint8_t)(lba >> 40);
 
-    fis[4] = (uint8_t)lba;
-    fis[5] = (uint8_t)(lba >> 8);
-    fis[6] = (uint8_t)(lba >> 16);
-    fis[7] = 1 << 6;
-    fis[8] = (uint8_t)(lba >> 24);
-    fis[9] = (uint8_t)(lba >> 32);
-    fis[10] = (uint8_t)(lba >> 40);
-
-    fis[12] = 1;
-    fis[13] = 0;
+    cmd_tbl->cfis[12] = 1; // Записываем ровно 1 сектор
+    cmd_tbl->cfis[13] = 0;
 
     uint32_t timeout = 1000000;
     while ((port->tfd & (0x80 | 0x08)) && --timeout);
     if (timeout == 0) return false;
 
-    port->ci = (1 << slot);
+    // Синхронизация кэша: выталкиваем данные source_buffer из кэша CPU прямо в ОЗУ для контроллера
+    flush_cache_line((void*)source_buffer, 512);
+
+    port->ci = (1 << slot); // Активируем команду
+
     timeout = 5000000;
     while (--timeout) {
         if ((port->ci & (1 << slot)) == 0) break;
-        if (port->is & (1 << 30)) return false;
+        if (port->is & (1 << 30)) return false; // Task File Error
     }
 
     if (timeout == 0) return false;
@@ -264,20 +278,20 @@ void print_hex(uint32_t val, unsigned int x, unsigned int y) {
         val >>= 4;
     }
     hex_str[10] = '\0';
-    printf(hex_str, x, y, 255, 255, 0);
+    printf(hex_str, x, y, 255, 255, 0, 255);
 }
 
 void debug_ahci_status(void) {
     if (!ahci) {
-        printf("AHCI Pointer is NULL!", 30, 150, 255, 0, 0);
+        printf("AHCI Pointer is NULL!", 30, 150, 255, 0, 0, 255);
         return;
     }
-    volatile AHCI_Port* port = &ahci->ports;
-    printf("SSTS:", 30, 170, 255, 255, 255);
+    volatile AHCI_Port* port = &ahci->ports[0];
+    printf("SSTS:", 30, 170, 255, 255, 255, 255);
     print_hex(port->ssts, 100, 170);
-    printf("TFD :", 30, 190, 255, 255, 255);
+    printf("TFD :", 30, 190, 255, 255, 255, 255);
     print_hex(port->tfd, 100, 190);
-    printf("SERR:", 30, 210, 255, 255, 255);
+    printf("SERR:", 30, 210, 255, 255, 255, 255);
     print_hex(port->serr, 100, 210);
 }
 
@@ -286,26 +300,5 @@ void flush_cache_line(void* addr, uint32_t length) {
     for (uintptr_t i = start; i < start + length; i += 64) {
         __asm__ volatile("clflush (%0)" : : "r"(i) : "memory");
     }
-}
-
-__attribute__((aligned(4096))) uint8_t ahci_test_write_buf[512];
-__attribute__((aligned(4096))) uint8_t ahci_test_read_buf[512];
-
-void test_ahci_write_x(void) {
-    for(int i = 0; i < 512; i++) ahci_test_write_buf[i] = 0;
-    ahci_test_write_buf[0] = 0x58; 
-    
-    flush_cache_line(&ahci_test_write_buf, 512);
-    ahci_write_sector(0, (void*)&ahci_test_write_buf);
-}
-
-uint32_t test_ahci_read_x(void) {
-    for(int i = 0; i < 512; i++) ahci_test_read_buf[i] = 0;
-    
-    flush_cache_line(&ahci_test_read_buf, 512);
-    ahci_read_sector(0, (void*)&ahci_test_read_buf);
-    flush_cache_line(&ahci_test_read_buf, 512);
-    
-    return (uint32_t)ahci_test_read_buf[0];
 }
 

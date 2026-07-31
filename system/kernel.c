@@ -65,19 +65,31 @@ void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
     draw_wallpaper(0, 0);
     draw_taskbar(50, 700, 923, 40, 8, 255, 255, 255, 200);
     
-    // 1. Создаем и обнуляем буферы
-    test_ahci_write_x();
-    uint32_t read_byte = test_ahci_read_x();
+    uint8_t read[512];
+    uint8_t write[512];
 
-    printf("Read Byte 0:", 30, 30, 255, 255, 255);
-    print_hex(read_byte, 150, 30); 
+// 1. Сначала полностью забиваем оба массива нулями
+    for(int i = 0; i < 512; i++) {
+       read[i] = 0;
+       write[i] = 0;
+    }
 
-    debug_ahci_status();
+// 2. И только ПОСЛЕ обнуления записываем наши символы в начало массива
+    write[0] = 'P';
+    write[1] = 'U';
+    write[2] = 'P';
+    write[3] = 'A';
+// Массив write теперь гарантированно содержит "PUPA" и заканчивается нулями
+
+// 3. Пишем, читаем и выводим
+    ahci_write_sector(0, write);
+    ahci_read_sector(0, read);
+
+// Теперь printf встретит 'P', 'U', 'P', 'A' и остановится на 4-м индексе (где остался 0)
+    printf(read, 50, 30, 255, 255, 255, 255); 
+
     swap_buffers(0);
 
-
-
-    debug_ahci_status();
 
     for (volatile int i = 0; i < 10000000; i++) {
         __asm__ volatile("nop");

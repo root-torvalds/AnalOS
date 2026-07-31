@@ -1,2 +1,4 @@
 .log
 .o
+target_ssd.img
+usb_flash.img
