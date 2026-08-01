@@ -2,10 +2,6 @@
 #include "idt.h"
 #include "kernel.h"
 
-void io_wait(void) {
-    asm volatile("outb %%al, $0x80" : : "a"(0));
-}
-
 struct IDTEntry {
     uint16_t offset_low;
     uint16_t segment_selector;

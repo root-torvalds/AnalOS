@@ -15,3 +15,4 @@ void insl(uint16_t port, void *addr, unsigned long count);
 void outsb(uint16_t port, const void *addr, unsigned long count);
 void outsw(uint16_t port, const void *addr, unsigned long count);
 void outsl(uint16_t port, const void *addr, unsigned long count);
+void io_wait(void);

@@ -1,5 +1,6 @@
 #include "efi.h"
 #include "kernel.h"
+#include "screen.h"
 #include "../images/icon.h"
 #include "../images/wallpaper.h"
 

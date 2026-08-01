@@ -18,10 +18,6 @@ extern void draw_mouse(int x, int y, int a);
 void save_mouse_bg (int mouse_last_x, int mouse_last_y);
 void undraw_mouse (int last_x, int last_y);
 
-static inline void io_wait(void) {
-    outb(0x80, 0);
-}
-
 void mouse_wait_write() {
     volatile uint32_t timeout = 1000000;
     while ((inb(0x64) & 2) != 0 && --timeout) {

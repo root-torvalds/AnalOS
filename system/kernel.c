@@ -16,10 +16,6 @@ void swap_buffers(EFI_GRAPHICS_OUTPUT_PROTOCOL* gop);
 void init_idt(void);
 void init_mouse(void);
 
-static inline void io_wait(void) {
-    asm volatile("outb %%al, $0x80" : : "a"(0));
-}
-
 void sys_reset(void) {
     outb(0xCF9, 0x02);
     io_wait();
@@ -61,6 +57,7 @@ void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
     init_ioapic();
     init_mouse();
     init_ahci();
+    init_ext2();
 
     draw_wallpaper(0, 0);
     draw_taskbar(50, 700, 923, 40, 8, 255, 255, 255, 200);
@@ -86,7 +83,7 @@ void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
     ahci_read_sector(0, read);
 
 // Теперь printf встретит 'P', 'U', 'P', 'A' и остановится на 4-м индексе (где остался 0)
-    printf(read, 50, 30, 255, 255, 255, 255); 
+    printf(read, 50, 30, 255, 255, 255, 255);
 
     swap_buffers(0);
 

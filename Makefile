@@ -24,7 +24,8 @@ C_SRCS = boot/bootloader.c \
 	 system/lib.c \
 	 system/ahci.c \
 	 system/print.c \
-	 system/allocate.c
+	 system/allocate.c \
+	 system/ext2.c
 
 CXX_SRCS = system/mouse.cpp
 
@@ -38,7 +39,7 @@ CXX_OBJS = $(addprefix build/, $(notdir $(CXX_SRCS:.cpp=_cpp.o)))
 
 OBJS = $(C_OBJS) $(CXX_OBJS) $(ASM_OBJS)
 
-all: build
+all: clean build run
 
 build: | build_dir $(OBJS)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o BOOTX64.EFI $(OBJS)
@@ -68,9 +69,7 @@ build/%.o: system/%.asm | build_dir
 build_dir:
 	mkdir -p build
 
-run:
-	$(MAKE) clean
-	$(MAKE) build
+run:	
 	qemu-system-x86_64 \
 		-bios ./OVMF.fd \
 		-net none \
