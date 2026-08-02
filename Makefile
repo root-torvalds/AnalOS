@@ -21,17 +21,14 @@ C_SRCS = boot/bootloader.c \
          system/idt.c \
          system/keyboard.c \
          system/mouse.c \
-	 system/lib.c \
-	 system/ahci.c \
-	 system/print.c \
-	 system/allocate.c \
-	 system/ext2.c
+         system/lib.c \
+         system/ahci.c \
+         system/print.c \
+         system/allocate.c \
+         system/ext2.c
 
 CXX_SRCS = system/mouse.cpp
-
 ASM_SRCS = system/interrupts.asm
-
-
 
 C_OBJS = $(addprefix build/, $(notdir $(C_SRCS:.c=.o)))
 ASM_OBJS = $(addprefix build/, $(notdir $(ASM_SRCS:.asm=.o)))
@@ -42,23 +39,29 @@ OBJS = $(C_OBJS) $(CXX_OBJS) $(ASM_OBJS)
 all: clean build run
 
 build: | build_dir $(OBJS)
+	# 1. Сборка EFI файла
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o BOOTX64.EFI $(OBJS)
-	mkdir -p image/EFI/BOOT
-	cp BOOTX64.EFI image/EFI/BOOT/BOOTX64.EFI
-	echo "FS0:\\EFI\\BOOT\\BOOTX64.EFI" > image/startup.nsh
-
+	
+	# 2. Создание структуры папок для ISO
+	mkdir -p iso_root/EFI/BOOT
+	cp BOOTX64.EFI iso_root/EFI/BOOT/BOOTX64.EFI
+	echo "FS0:\\EFI\\BOOT\\BOOTX64.EFI" > iso_root/startup.nsh
+	
+	# 3. Создание большого FAT32 образа с помощью mtools (64 MB)
+	dd if=/dev/zero of=iso_root/efiboot.img bs=1M count=64
+	mformat -i iso_root/efiboot.img -F -F -c 1 -v "EFI_BOOT" ::
+	mmd -i iso_root/efiboot.img ::/EFI
+	mmd -i iso_root/efiboot.img ::/EFI/BOOT
+	mcopy -i iso_root/efiboot.img BOOTX64.EFI ::/EFI/BOOT/BOOTX64.EFI
+	
+	# 4. Создание финального ISO образа
+	xorriso -as mkisofs -R -f -e efiboot.img -no-emul-boot -o analos.iso iso_root
 
 build/%.o: boot/%.c | build_dir
 	$(CC) $(CFLAGS) -c $< -o $@
 
 build/%.o: system/%.c | build_dir
 	$(CC) $(CFLAGS) -c $< -o $@
-
-build/%.o: system/%.c | build_dir
-	$(CC) $(CFLAGS) -c $< -o $@
-	
-build/lib.o: system/lib.c | build_dir
-	$(CC) $(CFLAGS) -c $< -o $@ 
 
 build/%_cpp.o: system/%.cpp | build_dir
 	$(CXX) $(CXXFLAGS) -c $< -o $@
@@ -79,9 +82,7 @@ run:
 		-global VGA.yres=768 \
 		-display gtk \
 		-serial stdio \
-		-drive if=none,id=usbstick,format=raw,file=fat:rw:image \
-		-device usb-ehci,id=ehci \
-		-device usb-storage,bus=ehci.0,drive=usbstick \
+		-cdrom analos.iso \
 		-drive id=ahcidisk,file=disk.img,if=none,format=raw,cache=writethrough \
 		-device ahci,id=ahci \
 		-device ide-hd,drive=ahcidisk,bus=ahci.0 \
@@ -91,8 +92,8 @@ run:
 		-D qemu.log
 
 clean:
-	rm -f BOOTX64.EFI
-	rm -rf image
+	rm -f BOOTX64.EFI analos.iso
+	rm -rf iso_root
 	rm -rf build
 
 .PHONY: all build run clean build_dir
