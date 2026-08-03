@@ -16,3 +16,4 @@ void outsb(uint16_t port, const void *addr, unsigned long count);
 void outsw(uint16_t port, const void *addr, unsigned long count);
 void outsl(uint16_t port, const void *addr, unsigned long count);
 void io_wait(void);
+uint32_t strlen(const char* str);

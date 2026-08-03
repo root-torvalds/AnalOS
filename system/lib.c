@@ -74,3 +74,12 @@ void outsl(uint16_t port, const void *addr, unsigned long count) {
                       : "+S" (addr), "+c" (count)
                       : "d" (port));
 }
+
+uint32_t strlen(const char* str) {
+    uint32_t i = 0;
+
+    while (str[i] != '\0') {
+        i++;
+    }
+    return i;
+}

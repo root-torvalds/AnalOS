@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include "ext2.h"
 #include "kernel.h"
 
@@ -91,6 +92,168 @@ typedef struct __attribute__((packed)) {
     char     name[4];   // Имя файла (выровнено по границе 4 байт)
 } DirectoryEntry;
 
+uint32_t ext2_alloc_inode(void) {
+    uint8_t buffer[1024];
+    ahci_read_sector(8, buffer);
+    ahci_read_sector(9, buffer + 512);
+    
+    for (int i = 0; i < 1024; i++) {
+        for (int b = 0; b < 8; b++) {
+            if ((buffer[i] & (1 << b)) == 0) {
+                buffer[i] |= (1 << b);
+                
+                ahci_write_sector(8, buffer);
+                ahci_write_sector(9, buffer + 512);
+                
+                uint32_t inode_num = (i * 8) + b + 1;
+                return inode_num;
+            }
+        }
+    }
+    return 0;
+}
+
+uint32_t ext2_alloc_block(void) {
+    uint8_t buffer[1024];
+    ahci_read_sector(6, buffer);
+    ahci_read_sector(7, buffer + 512);
+
+    for (int i = 3; i < 1024; i++) {
+        for (int b = 0; b < 8; b++) {
+            if ((buffer[i] & (1 << b)) == 0) {
+                buffer[i] |= (1 << b);
+                
+                ahci_write_sector(6, buffer);
+                ahci_write_sector(7, buffer + 512);
+                
+                uint32_t block_num = (i * 8) + b + 1;
+                return block_num;
+            }
+        }
+    }
+    return 0;
+}
+
+uint32_t ext2_get_inode_block(uint32_t inode_num) {
+
+    uint32_t byte_offset = (inode_num - 1) * 256;
+    uint32_t target_sector = 10 + (byte_offset / 512);
+    uint32_t inode_offset_in_sector = byte_offset % 512;
+    uint8_t sector_buf[512];
+    ahci_read_sector(target_sector, sector_buf);
+
+    Inode *file_inode = (Inode *)(sector_buf + inode_offset_in_sector);
+    return file_inode->block[0];
+}
+
+uint32_t ext2_search_dir(uint32_t dir_block, const char* target_name) {
+    uint8_t dir_buf[1024];
+    
+    ahci_read_sector(dir_block * 2, dir_buf);
+    ahci_read_sector(dir_block * 2 + 1, dir_buf + 512);
+
+    uint32_t offset = 0;
+    DirectoryEntry *entry = NULL;
+
+    uint32_t target_len = strlen(target_name);
+
+    while (offset < 1024) {
+        entry = (DirectoryEntry *)(dir_buf + offset);
+
+        if (entry->name_len == target_len) {
+            bool matches = true;
+
+            for (uint32_t i = 0; i < target_len; i++) {
+                if (entry->name[i] != target_name[i]) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) {
+                return entry->inode;
+            }
+        }
+        offset += entry->rec_len;
+    }
+    return 0;
+}
+
+uint32_t ext2_find_inode_by_path(const char* path) {
+    uint32_t current_inode = 2; // Стартуем с корня
+    
+    uint32_t i = 0;
+    if (path[0] == '/') i++;
+
+    char component[256];
+
+    while (path[i] != '\0') {
+        uint32_t c_len = 0;
+
+        // Выкусываем один кусок пути (например, "hello_world")
+        while (path[i] != '/' && path[i] != '\0' && c_len < 255) {
+            component[c_len++] = path[i++];
+        }
+        component[c_len] = '\0';
+
+        if (path[i] == '/') i++;
+
+        // Если компонент не пустой (защита от лишних слэшей)
+        if (c_len > 0) {
+            // Узнаем, в каком блоке лежит текущая папка
+            uint32_t dir_block = ext2_get_inode_block(current_inode);
+            
+            // Ищем компонент внутри этого блока
+            current_inode = ext2_search_dir(dir_block, component);
+            
+            // Если подпапка не найдена, возвращаем 0 (ошибка пути)
+            if (current_inode == 0) return 0;
+        }
+    }
+
+    return current_inode; // Теперь вернет 11 для "/hello_world"!
+}
+
+void ext2_add_dir_entry(uint32_t parent_block, uint32_t file_inode, const char* name, uint8_t file_type) {
+    uint8_t dir_buf[1024];
+    
+    ahci_read_sector(parent_block * 2, dir_buf);
+    ahci_read_sector(parent_block * 2 + 1, dir_buf + 512);
+
+    uint32_t offset = 0;
+    DirectoryEntry *entry = NULL;
+
+    while (offset < 1024) {
+        entry = (DirectoryEntry *)(dir_buf + offset);
+
+        if (offset + entry->rec_len >= 1024) {
+            break; 
+        }
+    
+        offset += entry->rec_len;
+    }
+    
+    uint32_t real_rec_len = 8 + entry->name_len;
+    real_rec_len = (real_rec_len + 3) & ~3;
+
+    uint32_t remaining_space = entry->rec_len - real_rec_len;
+    entry->rec_len = real_rec_len;
+    
+    offset += real_rec_len;
+    DirectoryEntry *new_entry = (DirectoryEntry *)(dir_buf + offset);
+    
+    new_entry->inode = file_inode;
+    new_entry->name_len = strlen(name);
+    new_entry->rec_len = 1024 - offset;
+    
+    uint32_t len = strlen(name);
+    for (uint32_t i = 0; i < len; i++) {
+        new_entry->name[i] = name[i];
+    }
+
+    ahci_write_sector(parent_block * 2, dir_buf);
+    ahci_write_sector(parent_block * 2 + 1, dir_buf + 512);
+}
+
 void init_ext2() {
     for (int i = 0; i < 1024; i++) {
         superblock[i]        = 0;
@@ -177,4 +340,116 @@ void init_ext2() {
     
     ahci_write_sector(52, root_dir_block);
     ahci_write_sector(53, root_dir_block + 512);
+}
+
+bool ext2_create_file(const char* path, const char* name, uint16_t mode, const void* data, uint32_t data_size) {
+    uint32_t new_ino = ext2_alloc_inode();
+    uint32_t new_blk = ext2_alloc_block();
+    
+    uint8_t file_buf[1024];
+    for (int i = 0; i < 1024; i++) file_buf[i] = 0;
+    
+    for (int i = 0; i < data_size; i++) {
+        file_buf[i] = ((const uint8_t*)data)[i];
+    }
+    
+    ahci_write_sector(new_blk * 2, file_buf);
+    ahci_write_sector(new_blk * 2 + 1, file_buf + 512);
+    
+    uint32_t byte_offset = (new_ino - 1) * 256;
+    uint32_t target_sector = 10 + (byte_offset / 512);
+    uint32_t inode_offset_in_sector = byte_offset % 512;
+
+    uint8_t sector_buf[512];
+    ahci_read_sector(target_sector, sector_buf);
+    
+    Inode *file_inode = (Inode *)(sector_buf + inode_offset_in_sector);
+    
+    uint8_t *inode_bytes = (uint8_t *)file_inode;
+    for (int i = 0; i < 256; i++) {
+        inode_bytes[i] = 0;
+    }
+    
+    file_inode->mode = 0x8000 | mode;
+    file_inode->size = data_size;
+    file_inode->blocks = 2;
+    file_inode->block[0] = new_blk;
+    
+    ahci_write_sector(target_sector, sector_buf);
+
+    uint32_t parent_inode = ext2_find_inode_by_path(path);
+    
+    uint32_t parent_block = ext2_get_inode_block(parent_inode);
+    
+    ext2_add_dir_entry(parent_block, new_ino, name, 0);
+    
+    return true;
+}
+
+bool ext2_create_dir(const char* path, const char* name) {
+    // 1. Выделяем новые ресурсы на диске
+    uint32_t new_blk = ext2_alloc_block();
+    uint32_t new_ino = ext2_alloc_inode();
+
+    // 2. Ищем родительскую папку по переданному пути
+    uint32_t parent_inode_num = ext2_find_inode_by_path(path);
+    uint32_t parent_data_block = ext2_get_inode_block(parent_inode_num);
+
+    // 3. Создаем и зануляем буфер для записей новой папки
+    uint8_t dir_block[1024];
+    for (int i = 0; i < 1024; i++) {
+        dir_block[i] = 0;    
+    }
+
+    // 4. Заполняем первую запись '.' (ссылка на саму себя)
+    DirectoryEntry *e1 = (DirectoryEntry *)dir_block;
+    e1->inode = new_ino;
+    e1->name_len = 1;
+    e1->rec_len = 12;
+    e1->file_type = 0;
+    e1->name[0] = '.';
+    
+    // 5. Заполняем вторую запись '..' (ссылка на родительскую папку)
+    DirectoryEntry *e2 = (DirectoryEntry *)(dir_block + 12);
+    e2->inode = parent_inode_num; // Указывает на родителя, а не жестко на корень!
+    e2->name_len = 2;
+    e2->rec_len = 1012; // Забирает весь остаток 1024-байтового блока (1024 - 12)
+    e2->file_type = 0;
+    e2->name[0] = '.';
+    e2->name[1] = '.';
+    
+    // 6. Записываем блок содержимого новой папки на диск
+    ahci_write_sector(new_blk * 2, dir_block);
+    ahci_write_sector(new_blk * 2 + 1, dir_block + 512);
+
+    // 7. Рассчитываем точные координаты паспорта (инноды) в таблице иннод
+    uint32_t byte_offset = (new_ino - 1) * 256;
+    uint32_t target_sector = 10 + (byte_offset / 512);
+    uint32_t inode_offset_in_sector = byte_offset % 512;
+    
+    // 8. Читаем сектор таблицы иннод
+    uint8_t sector_buf[512];
+    ahci_read_sector(target_sector, sector_buf);
+
+    // 9. Накладываем структуру и точечно очищаем ровно 256 байт нашей инноды
+    Inode *dir_inode = (Inode *)(sector_buf + inode_offset_in_sector);
+    uint8_t *inode_bytes = (uint8_t *)dir_inode;
+    for (int i = 0; i < 256; i++) {
+        inode_bytes[i] = 0;
+    }
+    
+    // 10. Заполняем паспорт папки (метаданные)
+    dir_inode->mode = 0x41ED; // Флаг директории + права доступа 755
+    dir_inode->size = 1024;   // Папка занимает ровно 1 блок ФС
+    dir_inode->links_count = 2;
+    dir_inode->blocks = 2;    // 2 сектора AHCI
+    dir_inode->block[0] = new_blk; // Указываем на её блок данных
+
+    // 11. Записываем обновленный сектор таблицы иннод обратно
+    ahci_write_sector(target_sector, sector_buf);
+    
+    // 12. Прописываем имя новой папки внутрь её родительской папки
+    ext2_add_dir_entry(parent_data_block, new_ino, name, 0);
+    
+    return true;
 }
