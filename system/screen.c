@@ -3,6 +3,7 @@
 #include "screen.h"
 #include "../images/icon.h"
 #include "../images/wallpaper.h"
+#include "../images/icon_folder.h"
 
 UINT32* real_framebuffer = 0;
 
@@ -249,6 +250,21 @@ void draw_wallpaper(UINT32 x0, UINT32 y0) {
             UINT8 g = wallpaper[idx + 1];
             UINT8 b = wallpaper[idx + 2];
             UINT8 a = wallpaper[idx + 3];
+            if (a > 0) {
+                draw_pixel(x0 + x, y0 + y, r, g, b, a);
+            }
+        }
+    }
+}
+
+void draw_ico_folder(UINT32 x0, UINT32 y0) {
+    for (UINT32 y = 0; y < folder_height; y++) {
+        for (UINT32 x = 0; x < folder_width; x++) {
+            UINT32 idx = (y * folder_width + x) * 4;
+            UINT8 r = folder[idx + 0];
+            UINT8 g = folder[idx + 1];
+            UINT8 b = folder[idx + 2];
+            UINT8 a = folder[idx + 3];
             if (a > 0) {
                 draw_pixel(x0 + x, y0 + y, r, g, b, a);
             }

@@ -62,6 +62,8 @@ void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
     draw_wallpaper(0, 0);
     draw_taskbar(50, 700, 923, 40, 8, 255, 255, 255, 200);
     
+    draw_ico_folder(30, 30);
+    
     ext2_create_dir("/", "hello_world");
     ext2_create_file("/hello_world", "hello_world.txt", 0x1A4, "Hello World from Kernel!", 24);
 
