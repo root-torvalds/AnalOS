@@ -25,7 +25,10 @@ C_SRCS = boot/bootloader.c \
          system/ahci.c \
          system/print.c \
          system/allocate.c \
-         system/ext2.c
+         system/ext2.c \
+         system/syscalls.c \
+         system/virtio_pci.c \
+         system/virtio_gpu.c
 
 CXX_SRCS = system/mouse.cpp
 ASM_SRCS = system/interrupts.asm
@@ -57,9 +60,11 @@ build: | build_dir $(OBJS)
 	# 4. Создание финального ISO образа
 	xorriso -as mkisofs -R -f -e efiboot.img -no-emul-boot -o analos.iso iso_root
 
-build/%.o: boot/%.c | build_dir
+# Явное правило для загрузчика (так как он лежит в папке boot)
+build/bootloader.o: boot/bootloader.c | build_dir
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Обобщенное правило для всех остальных файлов ядра (так как они лежат в папке system)
 build/%.o: system/%.c | build_dir
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -74,20 +79,17 @@ build_dir:
 
 run:	
 	qemu-system-x86_64 \
+		-machine q35 \
 		-bios ./OVMF.fd \
-		-net none \
 		-m 512M \
-		-vga std \
-		-global VGA.xres=1024 \
-		-global VGA.yres=768 \
+		-vga virtio \
 		-display gtk \
+		-net none \
 		-serial stdio \
 		-cdrom analos.iso \
 		-drive id=ahcidisk,file=disk.img,if=none,format=raw,cache=writethrough \
 		-device ahci,id=ahci \
 		-device ide-hd,drive=ahcidisk,bus=ahci.0 \
-		-machine pc \
-		-device isa-applesmc,osk="insertoskhereuphere" \
 		-d int \
 		-D qemu.log
 
