@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include "mouse.h"
 #include "kernel.h"
 
 extern volatile int has_keyboard_event;

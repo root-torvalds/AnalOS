@@ -1,5 +1,4 @@
 #include <stddef.h>
-#include "ext2.h"
 #include "kernel.h"
 
 uint8_t superblock[1024];

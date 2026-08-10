@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include "lib.h"
 #include "kernel.h"
 
 void io_wait(void) {

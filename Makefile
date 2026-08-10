@@ -16,7 +16,7 @@ LDFLAGS = -Wl,--subsystem,10 \
           -s
 
 C_SRCS = boot/bootloader.c \
-         system/kernel.c \
+	 system/kernel.c \
          system/screen.c \
          system/idt.c \
          system/keyboard.c \
@@ -30,7 +30,8 @@ C_SRCS = boot/bootloader.c \
          system/virtio_pci.c \
          system/virtio_gpu.c
 
-CXX_SRCS = system/mouse.cpp
+CXX_SRCS = system/mouse.cpp \
+	 system/virtio_gpu_cmd.cpp
 ASM_SRCS = system/interrupts.asm
 
 C_OBJS = $(addprefix build/, $(notdir $(C_SRCS:.c=.o)))

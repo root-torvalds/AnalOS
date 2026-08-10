@@ -1,18 +1,26 @@
-#include "efi.h"
 #include "kernel.h"
-#include "screen.h"
 #include "../images/icon.h"
 #include "../images/wallpaper.h"
 #include "../images/icon_folder.h"
 
 UINT32* real_framebuffer = 0;
-
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL* virtual_framebuffer = 0;
+
+#ifdef __cplusplus
+extern "C"
+#endif
+extern uint32_t *os_framebuffer;
 
 void init_screen_driver(BootInfo* info) {
     if (info) {
-        real_framebuffer = (UINT32*)info->FrameBufferBase;
-        virtual_framebuffer = (EFI_GRAPHICS_OUTPUT_BLT_PIXEL*)info->VirtualFrameBuffer;
+        real_framebuffer = (UINT32*)(*info).FrameBufferBase;
+        virtual_framebuffer = (EFI_GRAPHICS_OUTPUT_BLT_PIXEL*)(*info).VirtualFrameBuffer;
+    }
+}
+
+void screen_switch_to_virtio(void) {
+    if (os_framebuffer != 0) {
+        virtual_framebuffer = (EFI_GRAPHICS_OUTPUT_BLT_PIXEL*)os_framebuffer;
     }
 }
 
@@ -24,19 +32,17 @@ EFIAPI EFI_GRAPHICS_OUTPUT_BLT_PIXEL get_pixel(UINT32 x, UINT32 y) {
     }
 
     UINT32 index = y * 1024 + x;
-
     return virtual_framebuffer[index];
 }
-
 
 EFIAPI void draw_pixel(UINT32 x, UINT32 y, UINT8 r, UINT8 g, UINT8 b, UINT8 alpha) {
     if (!virtual_framebuffer || x >= 1024 || y >= 768 || alpha == 0) return;
 
     UINT32 index = y * 1024 + x;
     if (alpha == 255) {
-        virtual_framebuffer[index].Red = r;
+        virtual_framebuffer[index].Red   = r;
         virtual_framebuffer[index].Green = g;
-        virtual_framebuffer[index].Blue = b;
+        virtual_framebuffer[index].Blue  = b;
         return;
     }
 

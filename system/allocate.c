@@ -1,5 +1,4 @@
 #include "kernel.h"
-#include "allocate.h"
 
 void* memset(void* ptr, int value, unsigned long num) {
     unsigned char* p = (unsigned char*)ptr;

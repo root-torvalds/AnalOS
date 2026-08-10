@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <stdbool.h>
-#include "kernel.h" // Для вызова printf
+#include "kernel.h"
 
 #define ATA_CMD_WRITE_DMA_EXT 0x35
 #define ATA_CMD_READ_DMA_EXT  0x25

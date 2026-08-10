@@ -1,4 +1,3 @@
-#include "syscalls.h"
 #include "kernel.h"
 
 void write_msr(uint32_t msr, uint64_t value) {

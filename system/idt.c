@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include "idt.h"
 #include "kernel.h"
 
 struct IDTEntry {

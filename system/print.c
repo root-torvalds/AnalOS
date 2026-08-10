@@ -1,6 +1,5 @@
 #include <stddef.h>
 #include "../font.h"
-#include "print.h"
 #include "kernel.h"
 
 /**

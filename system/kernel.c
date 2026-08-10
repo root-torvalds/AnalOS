@@ -3,6 +3,14 @@
 volatile int has_keyboard_event = 0;
 volatile int has_mouse_event = 0;
 volatile uint8_t last_scancode = 0;
+#ifdef __cplusplus
+extern "C" {
+#endif
+    void screen_switch_to_virtio(void);
+    int  init_virtio_gpu(void);
+#ifdef __cplusplus
+}
+#endif
 
 extern int mouse_x;
 extern int mouse_y;
@@ -43,13 +51,25 @@ void sys_shutdown(void) {
     __asm__ __volatile__("cli; hlt");
 }
 
+#include "virtio_gpu_cmd.hpp"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+    void screen_switch_to_virtio(void);
+    int  init_virtio_gpu(void);
+#ifdef __cplusplus
+}
+#endif
+
 void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
     if (!info) {
         while(1) { __asm__ __volatile__("hlt"); }
     }
 
+    // Первичная отрисовка в UEFI буфер
     init_screen_driver(info);
-    fill_screen(0,0,0, 255);
+    fill_screen(0, 0, 0, 255);
     draw_icon(335, 115);
     swap_buffers(0);
     
@@ -58,17 +78,43 @@ void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
     init_mouse();
     init_ahci();
     init_ext2();
-
+    
     draw_wallpaper(0, 0);
     draw_taskbar(50, 700, 923, 40, 8, 255, 255, 255, 200);
-    
     draw_ico_folder(30, 30);
+    swap_buffers(0);
+
+    // Запуск VirtIO GPU
+    int res = init_virtio_gpu();
+    if (res == 0) {
+        int screen_res = virtio_gpu_setup_screen();
+        if (screen_res == 0) {
+            // Переключаем virtual_framebuffer на os_framebuffer
+            screen_switch_to_virtio();
+
+            // Перерисовываем элементы один раз на старте
+            draw_wallpaper(0, 0);
+            draw_taskbar(50, 700, 923, 40, 8, 255, 255, 255, 200);
+            draw_ico_folder(30, 30);
+            printf("VirtIO GPU Display Setup: SUCCESS!", 50, 100, 0, 255, 0, 255);
+            
+            // Твой родной swap_buffers скопирует virtual_framebuffer в real_framebuffer (который теперь равен os_framebuffer)
+            swap_buffers(0);
+            // Пинаем QEMU вывести готовый кадр
+            virtio_gpu_redraw();
+        } else {
+            if (screen_res == -10) printf("Display Error: QEMU rejected 2D Canvas!", 100, 130, 255, 0, 0, 255);
+            else if (screen_res == -11) printf("Display Error: Host rejected RAM binding!", 100, 130, 255, 0, 0, 255);
+            else if (screen_res == -12) printf("Display Error: Scanout binding failed!", 100, 130, 255, 0, 0, 255);
+            swap_buffers(0);
+        }
+    } else {
+        printf("VirtIO GPU Transport: FAILED!", 100, 130, 255, 0, 0, 255);
+        swap_buffers(0);
+    }
     
     ext2_create_dir("/", "hello_world");
     ext2_create_file("/hello_world", "hello_world.txt", 0x1A4, "Hello World from Kernel!", 24);
-
-    swap_buffers(0);
-
 
     for (volatile int i = 0; i < 10000000; i++) {
         __asm__ volatile("nop");
@@ -85,8 +131,13 @@ void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
             }
         } else if (has_mouse_event) {
             has_mouse_event = 0;
+            
             swap_buffers(0);
             draw_mouse(mouse_x, mouse_y, 255);
+
+            if (os_framebuffer != 0) {
+                virtio_gpu_redraw();
+            }
         }
     }
 }
