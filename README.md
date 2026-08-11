@@ -21,28 +21,29 @@
 ## English
 
 ### 📝 About the Project
-**AnalOS** is an independent, lightweight 32-bit operating system for the **x86** architecture, built entirely from scratch by a single developer. The compiled OS image takes up only **10 MB**.
+**AnalOS** is an independent, lightweight 64-bit operating system for the **x86_64** architecture, built entirely from scratch by a single developer. The compiled OS image takes up only **don't know MB**.
 
-The system boots via a **custom assembly bootloader**, switches to **32-bit protected mode**, and implements modern interrupt handling. Testing is performed both in the **QEMU** emulator and on bare metal (**Intel Celeron**).
+The system boots via a **not custom bootloader but 50% custom**, switches to **64-bit long mode**, and implements modern interrupt handling. Testing is performed both in the **QEMU** emulator and on bare metal (**Intel Celeron**).
 
 ### 🛠️ Built With
-* **C & C++** — Kernel core and primary system logic.
+* **C & C++** — Kernel core and Graphic.
 * **Assembly** — Low-level initialization and custom bootloader.
-* **Python** — Scripting for font conversion and asset building.
 * **Rust** — *(Coming Soon)* Planned integration for panic handling and safety.
-* **NeoVim** — The primary IDE used for development.
+* **Vim** — The primary IDE used for development.
 
 ### ✨ Current Features
-* 📺 **High-Res Graphics:** VESA 1280x1024 mode with full RGBA color support.
-* 🖱️ **GUI Core:** Functional mouse cursor.
-* 💻 **Window Manager:** Movable windows featuring interactive **Drag & Drop** via XOR rendering.
-* 🕒 **Desktop Environment:** A functional **Taskbar** with a "Start" button and a real-time clock.
+* 📺 **High-Res Graphics:** GOP UEFI with full RGBA color support.
+* 🖱️ **GUI Core:** Functional mouse cursor and.
+* 🕒 **Desktop Environment:** A not functional **Taskbar** but is MacOS-style
 
 ### 🗺️ Roadmap
-- [x] Custom Bootloader & 32-bit Protected Mode transition
+- [x] Custom Bootloader & 64-bit Protected Mode transition
 - [x] Interrupt handling
-- [x] VESA 1280x1024 RGBA Graphics
+- [x] GOP UEFI RGBA Graphics
 - [x] Taskbar, Mouse Cursor, and XOR Window Drag & Drop
+- [x] Ext2 File system
+- [ ] VirtIO driver
+- [ ] Ext4 File system
 - [ ] Rust integration (Panic handling & kernel modules)
 - [ ] Multi-tasking and system optimization
 - [ ] Sound driver support
@@ -57,16 +58,15 @@ Ideally, you should have a deep understanding of **system languages**, and low-l
 ## Русский
 
 ### 📝 О проекте
-**AnalOS** — это независимая, легковесная 32-битная операционная система для архитектуры **x86**, разрабатываемая с нуля силами одного человека. Вес готового образа составляет всего **10 мегабайт**.
+**AnalOS** — это независимая, легковесная 64-битная операционная система для архитектуры **x86_64**, разрабатываемая с нуля силами одного человека. Вес готового образа составляет всего **Не знаю сколько мегабайт**.
 
-Система запускается через **собственный загрузчик на Assembly**, успешно переходит в **защищённый 32-битный режим** и работает с прерываниями. Тестирование проекта проходит как в эмуляторе **QEMU**, так и на реальном железе (**Intel Celeron**).
+Система запускается через **почти собственный загрузчик на C**, успешно переходит в **длинный 64-битный режим** и работает с прерываниями. Тестирование проекта проходит как в эмуляторе **QEMU**, так и на реальном железе (**Intel Celeron**).
 
 ### 🛠️ Стек технологий
 * **C & C++** — Ядро и основная системная логика.
 * **Assembly** — Низкоуровневая инициализация и кастомный загрузчик.
-* **Python** — Скрипты для конвертации шрифтов и сборки ресурсов.
 * **Rust** — *(В планах)* Интеграция для обработки паники (panic handling) и повышения стабильности.
-* **NeoVim** — Основной инструмент, в котором пишется код ОС.
+* **Vim** — Основной инструмент, в котором пишется код ОС.
 
 ### ✨ Что уже реализовано
 * 📺 **Графика высокого разрешения:** GOP графика с полноценной поддержкой RGBA-цветов.
@@ -100,7 +100,7 @@ Ideally, you should have a deep understanding of **system languages**, and low-l
 - [ ] 4.6. Написание планировщика задач (Scheduler) на базе прерывания таймера IRQ 0 для переключения контекста (Context Switch).
 
 - [ ] 5.1. Написание драйвера ATA PIO для чтения и записи секторов жесткого диска через порты ввода-вывода.
-- [ ] 5.2. Реализация парсера файловой системы FAT32 или создание собственной простой ФС (чтение суперблока, инодов, директорий).
+- [x] 5.2. Реализация парсера файловой системы FAT32 или создание собственной простой ФС (чтение суперблока, инодов, директорий).
 - [ ] 5.3. Создание интерфейса системных вызовов (Syscalls) через инструкцию INT 0x80 или Sysenter.
 - [ ] 5.4. Написание пространства пользователя (User Space): изоляция процессов в кольце защиты Ring 3.
 
