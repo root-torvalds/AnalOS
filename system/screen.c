@@ -1,6 +1,8 @@
 #include "kernel.h"
 #include "../images/icon.h"
 #include "../images/wallpaper.h"
+#include "../images/Neon_Orb.h"
+#include "../images/Red_Eclipse.h"
 #include "../images/icon_folder.h"
 
 UINT32* real_framebuffer = 0;
@@ -249,13 +251,13 @@ void draw_icon(UINT32 x0, UINT32 y0) {
 }
 
 void draw_wallpaper(UINT32 x0, UINT32 y0) {
-    for (UINT32 y = 0; y < wallpaper_height; y++) {
-        for (UINT32 x = 0; x < wallpaper_width; x++) {
-            UINT32 idx = (y * wallpaper_width + x) * 4;
-            UINT8 r = wallpaper[idx + 0];
-            UINT8 g = wallpaper[idx + 1];
-            UINT8 b = wallpaper[idx + 2];
-            UINT8 a = wallpaper[idx + 3];
+    for (UINT32 y = 0; y < Neon_Orb_height; y++) {
+        for (UINT32 x = 0; x < Neon_Orb_width; x++) {
+            UINT32 idx = (y * Neon_Orb_width + x) * 4;
+            UINT8 r = Neon_Orb[idx + 0];
+            UINT8 g = Neon_Orb[idx + 1];
+            UINT8 b = Neon_Orb[idx + 2];
+            UINT8 a = Neon_Orb[idx + 3];
             if (a > 0) {
                 draw_pixel(x0 + x, y0 + y, r, g, b, a);
             }

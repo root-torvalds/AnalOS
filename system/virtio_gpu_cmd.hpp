@@ -1,5 +1,4 @@
-#ifndef VIRTIO_GPU_CMD_HPP
-#define VIRTIO_GPU_CMD_HPP
+#pragma once
 
 #include <stdint.h>
 
@@ -17,6 +16,3 @@ void virtio_gpu_clean_cache(void *addr, uint32_t bytes);
 #ifdef __cplusplus
 }
 #endif
-
-#endif // VIRTIO_GPU_CMD_HPP
-

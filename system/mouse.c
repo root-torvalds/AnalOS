@@ -13,10 +13,6 @@ int mouse_y = 384;
 
 uint8_t mouse_bytes[4];
 
-extern void draw_mouse(int x, int y, int a);
-void save_mouse_bg (int mouse_last_x, int mouse_last_y);
-void undraw_mouse (int last_x, int last_y);
-
 void mouse_wait_write() {
     volatile uint32_t timeout = 1000000;
     while ((inb(0x64) & 2) != 0 && --timeout) {
@@ -79,12 +75,11 @@ void init_mouse() {
     mouse_read();
 
     mouse_cycle = 0;
+    
 
-    save_mouse_bg(mouse_x, mouse_y);
 }
 
 void mouse_handler_c() {
-
     uint8_t status = inb(0x64);
 
     if ((status & 0x01) == 0 || (status & 0x20) == 0) {
@@ -106,7 +101,6 @@ void mouse_handler_c() {
 
     if (mouse_cycle == 3) {
         mouse_cycle = 0;
-        has_mouse_event = 1;
 
         int32_t move_x = mouse_bytes[1];
         int32_t move_y = mouse_bytes[2];
@@ -124,11 +118,15 @@ void mouse_handler_c() {
         mouse_x += move_x;
         mouse_y -= move_y;
 
+
         if (mouse_x < 0) mouse_x = 0;
         if (mouse_y < 0) mouse_y = 0;
-        if (mouse_x > 1024 - 32) mouse_x = 1024 - 32;
-        if (mouse_y > 768 - 32)  mouse_y = 768 - 32;
-        draw_mouse(mouse_x, mouse_y, 255);
+        if (mouse_x > 1023) mouse_x = 1023;
+        if (mouse_y > 767)  mouse_y = 767;
+
+
+        has_mouse_event = 1;
+
         mouse_last_x = mouse_x;
         mouse_last_y = mouse_y;
     }

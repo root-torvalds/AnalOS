@@ -3,9 +3,10 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// ============================================================================
-// 1. ИДЕНТИФИКАТОРЫ И КОНСТАНТЫ PCI / VIRTIO
-// ============================================================================
+#define DISPLAY_WIDTH                          1024
+#define DISPLAY_HEIGHT                         768
+#define GPU_RESOURCE_ID                        1
+
 #define VIRTIO_PCI_VENDOR_ID                   0x1AF4
 #define VIRTIO_PCI_DEVICE_ID_GPU               0x1050
 
@@ -28,23 +29,13 @@
 #define VIRTQ_DESC_F_NEXT                      1
 #define VIRTQ_DESC_F_WRITE                     2
 
-// ============================================================================
-// 2. СТРУКТУРЫ СТАНДАРТНЫХ КОМАНД VIRTIO GPU (Раздел 5.7)
-// ============================================================================
-#define VIRTIO_GPU_CMD_RESOURCE_CREATE_2D      0x0100
+#define VIRTIO_GPU_CMD_RESOURCE_CREATE_2D      0x0101
 #define VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING 0x0102
 #define VIRTIO_GPU_CMD_SET_SCANOUT             0x0103
 #define VIRTIO_GPU_CMD_RESOURCE_FLUSH          0x0104
 #define VIRTIO_GPU_RESP_OK_NODATA              0x1100
 #define VIRTIO_GPU_FORMAT_B8G8R8A8_UNORM       1
 
-#define DISPLAY_WIDTH                          1024
-#define DISPLAY_HEIGHT                         768
-#define GPU_RESOURCE_ID                        1
-
-// ============================================================================
-// 3. МАКЕТЫ РЕГИСТРОВ И СТРУКТУР ПАМЯТИ (Раздел 4.1.4)
-// ============================================================================
 #pragma pack(push, 1)
 
 struct virtio_pci_cap {
@@ -54,7 +45,7 @@ struct virtio_pci_cap {
     uint8_t  cfg_type;
     uint8_t  bar;
     uint8_t  id;
-    uint8_t  padding[2]; // Исправлено: 2 байта паддинга до dword по спецификации!
+    uint8_t  padding[2];
     uint32_t offset;
     uint32_t length;
 };
@@ -73,7 +64,6 @@ struct virtio_pci_common_cfg {
     uint16_t num_queues;
     uint8_t  device_status;
     uint8_t  config_generation;
-
     uint16_t queue_select;
     uint16_t queue_size;
     uint16_t queue_msix_vector;
@@ -110,7 +100,6 @@ struct virtq_used {
     struct virtq_used_elem ring[];
 };
 
-// Структуры графических пакетов VirtIO GPU с явным выравниванием по спецификации
 struct __attribute__((packed, aligned(4))) virtio_gpu_ctrl_hdr {
     uint32_t type;
     uint32_t flags;
@@ -161,10 +150,6 @@ struct __attribute__((packed, aligned(4))) virtio_gpu_resource_flush {
 
 #pragma pack(pop)
 
-// ============================================================================
-// 4. ПРОГРАММНЫЕ КОНТЕКСТЫ ДРАЙВЕРА (ЯДРО ОС)
-// ============================================================================
-
 typedef struct {
     volatile struct virtq_desc  *desc;
     volatile struct virtq_avail *avail;
@@ -189,10 +174,6 @@ typedef struct {
 
     virtio_queue_t queues[2];
 } virtio_pci_device_t;
-
-// ============================================================================
-// 5. ПРОТОТИПЫ СИСТЕМНЫХ ФУНКЦИЙ ДРАЙВЕРА
-// ============================================================================
 
 #ifdef __cplusplus
 extern "C" {

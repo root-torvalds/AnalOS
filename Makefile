@@ -28,7 +28,10 @@ C_SRCS = boot/bootloader.c \
          system/ext2.c \
          system/syscalls.c \
          system/virtio_pci.c \
-         system/virtio_gpu.c
+         system/virtio_gpu.c \
+         system/virtio_gpu_proto.c \
+         system/display_manager.c \
+         system/virtio_cursor_transport.c
 
 CXX_SRCS = system/mouse.cpp \
 	 system/virtio_gpu_cmd.cpp
@@ -78,13 +81,13 @@ build/%.o: system/%.asm | build_dir
 build_dir:
 	mkdir -p build
 
-run:	
+run:
 	qemu-system-x86_64 \
 		-machine q35 \
 		-bios ./OVMF.fd \
 		-m 512M \
 		-vga virtio \
-		-display gtk \
+		-display gtk,zoom-to-fit=off \
 		-net none \
 		-serial stdio \
 		-cdrom analos.iso \

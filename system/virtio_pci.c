@@ -1,9 +1,7 @@
 #include "kernel.h"
 
-// Глобальный контекст устройства, разделяемый с virtio_gpu.c
 virtio_pci_device_t my_gpu;
 
-// Подключаем функцию очистки памяти из allocate.c
 extern void* memset(void* ptr, int value, unsigned long num);
 
 // ============================================================================
@@ -25,7 +23,6 @@ uint32_t pci_read_config_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t 
     uint32_t lslot = (uint32_t)slot;
     uint32_t lfunc = (uint32_t)func;
     
-    // Бит 31 равен 1 для активации механизма конфигурационного пространства
     address = (uint32_t)((lbus << 16) | (lslot << 11) | (lfunc << 8) | (offset & 0xFC) | ((uint32_t)0x80000000));
     
     outdword(0x0CF8, address);
@@ -42,7 +39,6 @@ uint8_t pci_read_config_byte(uint8_t bus, uint8_t slot, uint8_t func, uint8_t of
     return (uint8_t)((val >> ((offset & 3) * 8)) & 0xFF);
 }
 
-// Физический адрес равен виртуальному (Identity Mapping в UEFI окружении ядра)
 uint64_t kernel_virtual_to_physical(void *virtual_addr) {
     return (uint64_t)virtual_addr;
 }
@@ -50,7 +46,6 @@ uint64_t kernel_virtual_to_physical(void *virtual_addr) {
 // ============================================================================
 // 2. ГАРАНТИРОВАННОЕ ВЫРАВНИВАНИЕ ПАМЯТИ ПО СТРАНИЦАМ (4096 БАЙТ)
 // ============================================================================
-// Статические пулы под кольца дескрипторов (максимальный размер очереди = 256)
 __attribute__((aligned(4096))) static uint8_t gpu_q0_desc[256 * 16];
 __attribute__((aligned(4096))) static uint8_t gpu_q0_avail[6 + (256 * 2)];
 __attribute__((aligned(4096))) static uint8_t gpu_q0_used[6 + (256 * 8)];
@@ -59,7 +54,6 @@ __attribute__((aligned(4096))) static uint8_t gpu_q1_desc[256 * 16];
 __attribute__((aligned(4096))) static uint8_t gpu_q1_avail[6 + (256 * 2)];
 __attribute__((aligned(4096))) static uint8_t gpu_q1_used[6 + (256 * 8)];
 
-// Статический пул под холст фреймбуфера 1024x768x4 байта (строго 3145728 байт)
 __attribute__((aligned(4096))) static uint8_t gpu_display_buffer[DISPLAY_WIDTH * DISPLAY_HEIGHT * 4];
 
 void* kernel_alloc_pages_aligned(uint32_t size, uint32_t alignment) {
@@ -67,15 +61,15 @@ void* kernel_alloc_pages_aligned(uint32_t size, uint32_t alignment) {
     void *result = 0;
 
     switch (alloc_counter) {
-        // Очередь 0: controlq
+
         case 0: result = (void*)gpu_q0_desc; break;
         case 1: result = (void*)gpu_q0_avail; break;
         case 2: result = (void*)gpu_q0_used; break;
-        // Очередь 1: cursorq
+
         case 3: result = (void*)gpu_q1_desc; break;
         case 4: result = (void*)gpu_q1_avail; break;
         case 5: result = (void*)gpu_q1_used; break;
-        // Запрос графического холста из virtio_gpu.c
+
         case 6: result = (void*)gpu_display_buffer; break;
         default: return 0;
     }
@@ -85,7 +79,6 @@ void* kernel_alloc_pages_aligned(uint32_t size, uint32_t alignment) {
     return result;
 }
 
-// Извлечение физического адреса BAR (с поддержкой 64-битных BAR)
 static uint64_t virtio_pci_get_bar_addr(uint8_t bus, uint8_t slot, uint8_t func, uint8_t bar_index) {
     uint8_t bar_offset = 0x10 + (bar_index * 4);
     uint32_t bar_low = pci_read_config_dword(bus, slot, func, bar_offset);
@@ -110,13 +103,11 @@ int virtio_pci_init_device(virtio_pci_device_t *vdev, uint8_t bus, uint8_t slot,
     (*vdev).device_cfg = 0;
     (*vdev).notify_base_addr = 0;
 
-    // Шаг 0: Валидация списка Capabilities в PCI Status (регистр 0x06, бит 4)
     uint16_t pci_status = pci_read_config_word(bus, slot, func, 0x06);
     if ((pci_status & 0x0010) == 0) {
         return -1; 
     }
 
-    // Читаем начальный указатель на Capability List (регистр 0x34)
     uint8_t cap_ptr = pci_read_config_byte(bus, slot, func, 0x34);
 
     while (cap_ptr != 0) {
@@ -126,7 +117,6 @@ int virtio_pci_init_device(virtio_pci_device_t *vdev, uint8_t bus, uint8_t slot,
 
         uint8_t cap_id = pci_read_config_byte(bus, slot, func, cap_ptr);
         
-        // Нас интересует только Vendor-Specific ID 0x09
         if (cap_id == 0x09) {
             struct virtio_pci_cap cap;
             
@@ -155,7 +145,6 @@ int virtio_pci_init_device(virtio_pci_device_t *vdev, uint8_t bus, uint8_t slot,
                     case VIRTIO_PCI_CAP_NOTIFY_CFG:
                         (*vdev).notify_base_addr = target_addr;
                         (*vdev).notify_bar = cap.bar;
-                        // Считываем поле за пределами общего заголовка cap (смещение +16)
                         (*vdev).notify_multiplier = pci_read_config_dword(bus, slot, func, cap_ptr + 16);
                         break;
                 }
@@ -164,12 +153,10 @@ int virtio_pci_init_device(virtio_pci_device_t *vdev, uint8_t bus, uint8_t slot,
         cap_ptr = pci_read_config_byte(bus, slot, func, cap_ptr + 1);
     }
 
-    // Проверка наличия обязательных Modern Capabilities
     if (!(*vdev).common_cfg || !(*vdev).isr_cfg || !(*vdev).notify_base_addr) {
         return -2;
     }
 
-    // Сброс и выставление начальных битов статуса драйвера (Раздел 3.1.1)
     (*(*vdev).common_cfg).device_status = VIRTIO_STATUS_RESET;
     while ((*(*vdev).common_cfg).device_status != VIRTIO_STATUS_RESET) {
         __asm__ volatile("pause");
@@ -190,13 +177,11 @@ int virtio_gpu_negotiate_features(virtio_pci_device_t *vdev) {
     (*cfg).device_feature_select = 1;
     uint32_t host_high = (*cfg).device_feature;
 
-    // Бит 32 (VIRTIO_F_VERSION_1) — это нулевой бит верхнего 32-битного слова
     if ((host_high & 0x00000001) == 0) {
         (*cfg).device_status |= VIRTIO_STATUS_FAILED;
         return -3; 
     }
 
-    // Зеркалируем фичи хоста обратно для полной совместимости с QEMU
     (*cfg).driver_feature_select = 0;
     (*cfg).driver_feature = host_low;
     
@@ -214,7 +199,6 @@ int virtio_gpu_negotiate_features(virtio_pci_device_t *vdev) {
     return 0;
 }
 
-// 2. Инициализация Split Virtqueue
 int virtio_queue_setup(virtio_pci_device_t *vdev, uint16_t queue_index) {
     volatile struct virtio_pci_common_cfg *cfg = (*vdev).common_cfg;
 
@@ -237,7 +221,6 @@ int virtio_queue_setup(virtio_pci_device_t *vdev, uint16_t queue_index) {
         return -6; 
     }
 
-    // Вычисляем указатель на конкретную очередь по её индексу
     virtio_queue_t *q = (*vdev).queues + queue_index;
 
     (*q).desc = (volatile struct virtq_desc *)desc_mem;

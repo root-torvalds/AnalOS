@@ -21,7 +21,9 @@ extern volatile uint8_t last_scancode;
 #include "keyboard.h"
 #include "virtio_pci.h"
 #include "virtio_gpu.h"
-
+//#include "virtio_queue.h"
+//#include "virtio_gpu_proto.h"
+#include "display_manager.h"
 #ifdef __cplusplus
 }
 #endif
