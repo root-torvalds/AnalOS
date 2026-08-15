@@ -7,9 +7,6 @@ extern "C" {
     extern volatile int has_mouse_event;
 }
 
-/**
- * @brief Дополнительный высокоуровневый обработчик
- */
 extern "C" void mouse_handler_incoming_packet(int8_t delta_x, int8_t delta_y) {
     mouse_x += delta_x;
     mouse_y += delta_y;
@@ -21,4 +18,3 @@ extern "C" void mouse_handler_incoming_packet(int8_t delta_x, int8_t delta_y) {
 
     has_mouse_event = 1;
 }
-

@@ -4,9 +4,7 @@ virtio_pci_device_t my_gpu;
 
 extern void* memset(void* ptr, int value, unsigned long num);
 
-// ============================================================================
 // 1. НИЗКОУРОВНЕВЫЙ ДОСТУП К ПОРТАМ И ШИНЕ PCI x86_64
-// ============================================================================
 static inline void outdword(uint16_t port, uint32_t value) {
     __asm__ volatile("outl %0, %1" : : "a"(value), "Nd"(port));
 }
@@ -43,9 +41,7 @@ uint64_t kernel_virtual_to_physical(void *virtual_addr) {
     return (uint64_t)virtual_addr;
 }
 
-// ============================================================================
 // 2. ГАРАНТИРОВАННОЕ ВЫРАВНИВАНИЕ ПАМЯТИ ПО СТРАНИЦАМ (4096 БАЙТ)
-// ============================================================================
 __attribute__((aligned(4096))) static uint8_t gpu_q0_desc[256 * 16];
 __attribute__((aligned(4096))) static uint8_t gpu_q0_avail[6 + (256 * 2)];
 __attribute__((aligned(4096))) static uint8_t gpu_q0_used[6 + (256 * 8)];
@@ -91,9 +87,7 @@ static uint64_t virtio_pci_get_bar_addr(uint8_t bus, uint8_t slot, uint8_t func,
     return (bar_low & 0xFFFFFFF0);
 }
 
-// ============================================================================
 // 3. РЕАЛИЗАЦИЯ ИНТЕРФЕЙСА СТАНДАРТА VIRTIO MODERN
-// ============================================================================
 int virtio_pci_init_device(virtio_pci_device_t *vdev, uint8_t bus, uint8_t slot, uint8_t func) {
     (*vdev).bus = bus;
     (*vdev).slot = slot;

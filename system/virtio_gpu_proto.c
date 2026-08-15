@@ -47,22 +47,20 @@ int virtio_dev_send_cursor_command(void *cmd_buf, uint32_t cmd_len, void *resp_b
     (void)resp_buf;
     (void)resp_len;
 
-    uint16_t queue_index = 1; // Очередь cursorq Fast Track (Глава 5.7.2)
+    uint16_t queue_index = 1;
     virtio_queue_t *q = my_gpu.queues + queue_index;
 
     if (!q->desc || !q->avail || !q->used) {
         return -1001;
     }
 
-    // По спецификации VirtIO 1.2 для cursorq: используем строго ОДИН одиночный дескриптор (индекс 0)
     uint16_t idx_cmd = 0;
 
     q->desc[idx_cmd].addr  = kernel_virtual_to_physical(cmd_buf);
-    q->desc[idx_cmd].len   = cmd_len; // Строго 64 байта
-    q->desc[idx_cmd].flags = 0;       // НИКАКИХ НАСТРОЕК VIRTQ_DESC_F_NEXT! Пакет строго Read-Only и одиночный.
+    q->desc[idx_cmd].len   = cmd_len;
+    q->desc[idx_cmd].flags = 0;
     q->desc[idx_cmd].next  = 0;
 
-    // Помещаем дескриптор в кольцо доступных команд гостя
     uint16_t avail_idx = q->avail->idx;
     uint16_t ring_pos = avail_idx & (q->queue_size - 1);
     q->avail->ring[ring_pos] = idx_cmd;
@@ -73,7 +71,6 @@ int virtio_dev_send_cursor_command(void *cmd_buf, uint32_t cmd_len, void *resp_b
 
     cursor_avail_idx_local++;
 
-    // Расчёт физического адреса Doorbell PCI Modern
     my_gpu.common_cfg->queue_select = queue_index;
     __asm__ volatile("mfence" : : : "memory");
     
@@ -81,7 +78,6 @@ int virtio_dev_send_cursor_command(void *cmd_buf, uint32_t cmd_len, void *resp_b
     uint64_t notify_addr = my_gpu.notify_base_addr + (notify_off * my_gpu.notify_multiplier);
     volatile uint16_t *doorbell = (volatile uint16_t *)notify_addr;
 
-    // Аппаратный удар в колокол хоста QEMU
     *doorbell = queue_index; 
     __asm__ volatile("mfence" : : : "memory");
 

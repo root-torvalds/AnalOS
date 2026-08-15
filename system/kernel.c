@@ -144,13 +144,9 @@ void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
 
     __asm__ volatile("sti");
 
-    // ========================================================================
-    // ФИНАЛЬНЫЙ СТАБИЛИЗИРОВАННЫЙ ЦИКЛ СИНХРОНИЗАЦИИ КООРДИНАТ ANALOS
-    // ========================================================================
     static uint32_t last_sent_mouse_x = 9999;
     static uint32_t last_sent_mouse_y = 9999;
 
-    // Жестко инициализируем стартовую позицию в центре экрана при первом запуске
     mouse_x = 512;
     mouse_y = 384;
 
@@ -160,18 +156,15 @@ void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
         if (has_keyboard_event) {
             has_mouse_event = 0;
             has_keyboard_event = 0;
-            if (last_scancode == 0x01) { // Кнопка ESC
+            if (last_scancode == 0x01) {
                 sys_reset();
             }
         } 
         else if (has_mouse_event) {
             has_mouse_event = 0;
             
-            // ЗАЩИТА ОТ УЛЕТА (Анти-дрифт фильтр коммерческого класса):
-            // Если кривой PS/2 пакет сбросил координаты в жесткий ноль или выбросил за экран,
-            // мы игнорируем падение и плавно удерживаем курсор в валидной зоне 1024x768
             if (mouse_x <= 2 || mouse_y <= 2 || mouse_x >= 1022 || mouse_y >= 766) {
-                // Пытаемся восстановить координаты из последнего успешного шага
+
                 if (last_sent_mouse_x != 9999 && last_sent_mouse_y != 9999) {
                     mouse_x = last_sent_mouse_x;
                     mouse_y = last_sent_mouse_y;
@@ -180,13 +173,10 @@ void __attribute__((ms_abi)) kernel_main(BootInfo* info) {
                     mouse_y = 384;
                 }
             }
-
-            // Фильтр дубликатов: отправляем команду только при реальном движении руки
             if (mouse_x != last_sent_mouse_x || mouse_y != last_sent_mouse_y) {
                 last_sent_mouse_x = mouse_x;
                 last_sent_mouse_y = mouse_y;
                 
-                // Асинхронный сдвиг аппаратного плейна силами GPU хоста
                 display_manager_move_cursor(mouse_x, mouse_y);
             }
         }

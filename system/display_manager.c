@@ -94,7 +94,6 @@ int display_manager_init_hardware_cursor(void *cursor_rgba_buffer) {
     unsigned char *raw_cmd = (unsigned char *)&global_dma_cursor_cmd;
     for (uint32_t i = 0; i < sizeof(global_dma_cursor_cmd); i++) raw_cmd[i] = 0;
 
-    // Шаг 1: Создание ресурса курсора
     struct virtio_gpu_resource_create_2d cmd_c2d;
     unsigned char *raw_c2d = (unsigned char *)&cmd_c2d;
     for (uint32_t i = 0; i < sizeof(cmd_c2d); i++) raw_c2d[i] = 0;
@@ -108,7 +107,6 @@ int display_manager_init_hardware_cursor(void *cursor_rgba_buffer) {
     status = virtio_dev_send_command(&my_gpu, 0, &cmd_c2d, sizeof(cmd_c2d), &resp_hdr, sizeof(resp_hdr));
     if (status != 0 || resp_hdr.type != DM_RESP_OK_NODATA) return -1;
 
-    // Шаг 2: Привязка памяти
     struct dm_cursor_attach_packet packet;
     unsigned char *raw_packet = (unsigned char *)&packet;
     for (uint32_t i = 0; i < sizeof(packet); i++) raw_packet[i] = 0;
@@ -122,7 +120,6 @@ int display_manager_init_hardware_cursor(void *cursor_rgba_buffer) {
     status = virtio_dev_send_command(&my_gpu, 0, &packet, sizeof(packet), &resp_hdr, sizeof(resp_hdr));
     if (status != 0 || resp_hdr.type != DM_RESP_OK_NODATA) return -2;
 
-    // ШАК 2.5 (ОБЯЗАТЕЛЬНО ПО ГЛАВЕ 5.7.6.8): Загружаем байты стрелки в текстуру хоста!
     struct dm_transfer_to_host_2d cmd_trans;
     unsigned char *raw_trans = (unsigned char *)&cmd_trans;
     for (uint32_t i = 0; i < sizeof(cmd_trans); i++) raw_trans[i] = 0;
@@ -135,7 +132,6 @@ int display_manager_init_hardware_cursor(void *cursor_rgba_buffer) {
     status = virtio_dev_send_command(&my_gpu, 0, &cmd_trans, sizeof(cmd_trans), &resp_hdr, sizeof(resp_hdr));
     if (status != 0 || resp_hdr.type != DM_RESP_OK_NODATA) return -3;
 
-    // Шаг 3: Полная первичная загрузка (UPDATE)
     global_dma_cursor_cmd.type = DM_CMD_UPDATE_CURSOR; 
     global_dma_cursor_cmd.flags = DM_FLAG_FENCE; 
     global_dma_cursor_cmd.fence_id = cursor_fence_counter++;
@@ -158,10 +154,8 @@ int display_manager_init_hardware_cursor(void *cursor_rgba_buffer) {
 int display_manager_move_cursor(uint32_t x, uint32_t y) {
     struct virtio_gpu_ctrl_hdr resp_hdr;
     
-    // КОММЕРЧЕСКОЕ ИСПРАВЛЕНИЕ: Убрали флаг DM_FLAG_FENCE и инкремент fence_id по спецификации 1.2!
-    // Теперь операция MOVE_CURSOR улетает без блокировок графического процессора хоста.
-    global_dma_cursor_cmd.type = DM_CMD_MOVE_CURSOR; // 0x0301
-    global_dma_cursor_cmd.flags = 0;                 // Чистый асинхронный запуск без заборов!
+    global_dma_cursor_cmd.type = DM_CMD_MOVE_CURSOR;
+    global_dma_cursor_cmd.flags = 0;
     global_dma_cursor_cmd.fence_id = 0;
     global_dma_cursor_cmd.x = x;
     global_dma_cursor_cmd.y = y;

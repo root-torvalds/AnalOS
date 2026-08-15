@@ -1,7 +1,6 @@
-// system/virtio_gpu_proto.h
 #pragma once
 
-#include "virtio_pci.h" // Напрямую подтягиваем типы устройства
+#include "virtio_pci.h"
 
 #ifdef __cplusplus
 extern "C" {
