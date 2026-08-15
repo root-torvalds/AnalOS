@@ -13,8 +13,6 @@
 
 extern virtio_pci_device_t my_gpu;
 extern uint64_t kernel_virtual_to_physical(void *virtual_addr);
-extern void swap_buffers(void *gop);
-extern void virtio_gpu_redraw(void);
 
 #pragma pack(push, 4)
 struct local_virtio_gpu_rect { uint32_t x; uint32_t y; uint32_t width; uint32_t height; };
@@ -25,90 +23,67 @@ struct local_virtio_gpu_cursor_pos { uint32_t scanout_id; uint32_t x; uint32_t y
 struct local_virtio_gpu_update_cursor { struct local_virtio_gpu_ctrl_hdr hdr; struct local_virtio_gpu_cursor_pos pos; uint32_t resource_id; uint32_t hot_x; uint32_t hot_y; uint32_t padding; };
 #pragma pack(pop)
 
-__attribute__((aligned(16))) static struct virtq_desc   cursor_desc_table[GPU_QUEUE_SIZE_DCA];
-__attribute__((aligned(4)))  static struct virtq_avail  cursor_avail_ring;
-__attribute__((aligned(4)))  static struct virtq_used   cursor_used_ring;
-
 static uint16_t cursor_avail_idx_local = 0;
 
-static void proto_force_log_flush(const char *msg, uint32_t y, uint8_t r, uint8_t g, uint8_t b) {
-    printf(msg, 50, y, r, g, b, 255);
-    swap_buffers(0);
-    virtio_gpu_redraw();
+uint16_t virtio_pci_get_queue_notify_off(uint16_t queue_index) {
+    volatile struct virtio_pci_common_cfg *cfg = (volatile struct virtio_pci_common_cfg *)my_gpu.common_cfg;
+    if (!cfg) return 0;
+    cfg->queue_select = queue_index;
+    __asm__ volatile("mfence" : : : "memory");
+    return cfg->queue_notify_off;
+}
+
+uint64_t virtio_pci_get_doorbell_address(uint16_t queue_index) {
+    uint16_t notify_off = virtio_pci_get_queue_notify_off(queue_index);
+    uint64_t physical_doorbell = my_gpu.notify_base_addr + ((uint64_t)notify_off * (uint64_t)my_gpu.notify_multiplier);
+    return physical_doorbell;
 }
 
 int virtio_gpu_configure_cursor_hardware_queue(void) {
-    proto_force_log_flush("[PROTO_TRACE] Starting queue configuration index 1...", 100, 255, 255, 0);
-
-    volatile struct virtio_pci_common_cfg *cfg = (volatile struct virtio_pci_common_cfg *)my_gpu.common_cfg;
-    if (!cfg) {
-        proto_force_log_flush("[PROTO_TRACE] FATAL: common_cfg pointer is NULL!", 120, 255, 0, 0);
-        return -1;
-    }
-
-    cfg->queue_select = GPU_CURSOR_QUEUE_INDEX;
-    __asm__ volatile("" : : : "memory");
-
-    if (cfg->queue_size == 0) {
-        proto_force_log_flush("[PROTO_TRACE] FATAL: QEMU says queue 1 unavailable!", 120, 255, 0, 0);
-        return -2;
-    }
-
-    cfg->queue_size = GPU_QUEUE_SIZE_DCA;
-
-    unsigned char *p;
-    p = (unsigned char*)&cursor_desc_table; for(uint32_t i=0; i<sizeof(cursor_desc_table); i++) p[i] = 0;
-    p = (unsigned char*)&cursor_avail_ring; for(uint32_t i=0; i<sizeof(cursor_avail_ring); i++) p[i] = 0;
-    p = (unsigned char*)&cursor_used_ring;  for(uint32_t i=0; i<sizeof(cursor_used_ring); i++)  p[i] = 0;
-
-    uint16_t *avail_ring_array = (uint16_t*)((uintptr_t)&cursor_avail_ring + 4);
-    for (int i = 0; i < GPU_QUEUE_SIZE_DCA; i++) {
-        avail_ring_array[i] = i;
-    }
-
-
-    cfg->queue_desc   = kernel_virtual_to_physical(&cursor_desc_table);
-    cfg->queue_driver = kernel_virtual_to_physical(&cursor_avail_ring);
-    cfg->queue_device = kernel_virtual_to_physical(&cursor_used_ring);
-    __asm__ volatile("" : : : "memory");
-
-    proto_force_log_flush("[PROTO_TRACE] Writing configuration registers... OK.", 120, 0, 255, 0);
-
-
-    cfg->queue_enable = 1;
-    __asm__ volatile("" : : : "memory");
-
-    proto_force_log_flush("[PROTO_TRACE] Queue 1 status: ENABLED.", 140, 0, 255, 0);
     return 0;
 }
 
 int virtio_dev_send_cursor_command(void *cmd_buf, uint32_t cmd_len, void *resp_buf, uint32_t resp_len) {
-    (void)cmd_len; (void)resp_len;
+    (void)resp_buf;
+    (void)resp_len;
 
-    cursor_desc_table[0].addr = kernel_virtual_to_physical(cmd_buf);
-    cursor_desc_table[0].len = sizeof(struct local_virtio_gpu_update_cursor);
-    cursor_desc_table[0].flags = 1; // NEXT
-    cursor_desc_table[0].next = 1;
+    uint16_t queue_index = 1; // Очередь cursorq Fast Track (Глава 5.7.2)
+    virtio_queue_t *q = my_gpu.queues + queue_index;
 
-    cursor_desc_table[1].addr = kernel_virtual_to_physical(resp_buf);
-    cursor_desc_table[1].len = sizeof(struct local_virtio_gpu_ctrl_hdr);
-    cursor_desc_table[1].flags = 2; // WRITE
-    cursor_desc_table[1].next = 0;
+    if (!q->desc || !q->avail || !q->used) {
+        return -1001;
+    }
 
-    uint16_t *avail_ring_array = (uint16_t*)((uintptr_t)&cursor_avail_ring + 4);
-    avail_ring_array[cursor_avail_idx_local % GPU_QUEUE_SIZE_DCA] = 0;
+    // По спецификации VirtIO 1.2 для cursorq: используем строго ОДИН одиночный дескриптор (индекс 0)
+    uint16_t idx_cmd = 0;
+
+    q->desc[idx_cmd].addr  = kernel_virtual_to_physical(cmd_buf);
+    q->desc[idx_cmd].len   = cmd_len; // Строго 64 байта
+    q->desc[idx_cmd].flags = 0;       // НИКАКИХ НАСТРОЕК VIRTQ_DESC_F_NEXT! Пакет строго Read-Only и одиночный.
+    q->desc[idx_cmd].next  = 0;
+
+    // Помещаем дескриптор в кольцо доступных команд гостя
+    uint16_t avail_idx = q->avail->idx;
+    uint16_t ring_pos = avail_idx & (q->queue_size - 1);
+    q->avail->ring[ring_pos] = idx_cmd;
     
-    __asm__ volatile("" : : : "memory");
-    cursor_avail_ring.idx++;
-    __asm__ volatile("" : : : "memory");
+    __asm__ volatile("mfence" : : : "memory");
+    q->avail->idx = avail_idx + 1;
+    __asm__ volatile("mfence" : : : "memory");
 
     cursor_avail_idx_local++;
 
-    volatile uint32_t *notify_reg = (volatile uint32_t *)my_gpu.notify_bar;
-    if (notify_reg) {
-        *notify_reg = 1;
-    }
+    // Расчёт физического адреса Doorbell PCI Modern
+    my_gpu.common_cfg->queue_select = queue_index;
+    __asm__ volatile("mfence" : : : "memory");
+    
+    uint16_t notify_off = my_gpu.common_cfg->queue_notify_off;
+    uint64_t notify_addr = my_gpu.notify_base_addr + (notify_off * my_gpu.notify_multiplier);
+    volatile uint16_t *doorbell = (volatile uint16_t *)notify_addr;
+
+    // Аппаратный удар в колокол хоста QEMU
+    *doorbell = queue_index; 
+    __asm__ volatile("mfence" : : : "memory");
 
     return 0;
 }
-

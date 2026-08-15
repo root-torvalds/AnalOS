@@ -87,7 +87,9 @@ run:
 		-bios ./OVMF.fd \
 		-m 512M \
 		-vga virtio \
-		-display gtk,zoom-to-fit=off \
+		-global virtio-gpu-pci.xres=1024 \
+		-global virtio-gpu-pci.yres=768 \
+		-display sdl \
 		-net none \
 		-serial stdio \
 		-cdrom analos.iso \

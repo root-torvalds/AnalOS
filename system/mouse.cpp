@@ -2,15 +2,13 @@ extern "C" {
     #include <stdint.h>
     #include "kernel.h"
     
-    // Ссылаемся на переменные, которые уже объявлены и инициализированы в mouse.c
     extern int mouse_x;
     extern int mouse_y;
     extern volatile int has_mouse_event;
 }
 
 /**
- * @brief Дополнительный высокоуровневый обработчик (если вызывается из смежных C++ модулей).
- * Просто обновляет физические координаты, изолированно от экрана.
+ * @brief Дополнительный высокоуровневый обработчик
  */
 extern "C" void mouse_handler_incoming_packet(int8_t delta_x, int8_t delta_y) {
     mouse_x += delta_x;
@@ -23,3 +21,4 @@ extern "C" void mouse_handler_incoming_packet(int8_t delta_x, int8_t delta_y) {
 
     has_mouse_event = 1;
 }
+
